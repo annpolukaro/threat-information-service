@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/annpolukaro/threat-information-service/internal/domain"
 )
@@ -281,5 +282,110 @@ func TestUpdateThreat(t *testing.T) {
 	err = repo.Update(ctx, missing)
 	if !errors.Is(err, ErrNotFound) {
 		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestThreatFirstSeenAt(t *testing.T) {
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("DATABASE_URL is not set")
+	}
+
+	ctx := context.Background()
+
+	pool, err := Connect(ctx, databaseURL)
+	if err != nil {
+		t.Fatalf("connect to database: %v", err)
+	}
+
+	t.Cleanup(func() {
+		pool.Close()
+	})
+
+	repo := NewThreatRepository(pool)
+
+	md5 := "098f6bcd4621d373cade4e832627b4f6"
+
+	// Удаляем тестовую запись перед запуском.
+	_, err = pool.Exec(ctx, "DELETE FROM threats WHERE md5 = $1", md5)
+	if err != nil {
+		t.Fatalf("cleanup before test: %v", err)
+	}
+
+	// Удаляем запись после теста.
+	t.Cleanup(func() {
+		_, err := pool.Exec(
+			context.Background(),
+			"DELETE FROM threats WHERE md5 = $1",
+			md5,
+		)
+		if err != nil {
+			t.Errorf("cleanup after test: %v", err)
+		}
+	})
+
+	firstSeen := time.Date(
+		2024, 1, 15, 10, 30, 0, 0, time.UTC,
+	)
+
+	threat := &domain.Threat{
+		MD5:         md5,
+		Name:        "Test Trojan",
+		Description: "Test first_seen_at",
+		ThreatType:  domain.ThreatTypeTrojan,
+		Severity:    domain.SeverityHigh,
+		FirstSeenAt: &firstSeen,
+	}
+
+	// 1. Создаём угрозу.
+	if err := repo.Create(ctx, threat); err != nil {
+		t.Fatalf("create threat: %v", err)
+	}
+
+	// 2. Читаем её из PostgreSQL.
+	saved, err := repo.GetByMD5(ctx, md5)
+	if err != nil {
+		t.Fatalf("get threat: %v", err)
+	}
+
+	if saved.FirstSeenAt == nil {
+		t.Fatal("first_seen_at is nil after create")
+	}
+
+	if !saved.FirstSeenAt.Equal(firstSeen) {
+		t.Errorf(
+			"expected first_seen_at %v, got %v",
+			firstSeen,
+			*saved.FirstSeenAt,
+		)
+	}
+
+	// 3. Меняем дату первого обнаружения.
+	updatedFirstSeen := time.Date(
+		2025, 3, 20, 14, 0, 0, 0, time.UTC,
+	)
+
+	saved.FirstSeenAt = &updatedFirstSeen
+
+	if err := repo.Update(ctx, saved); err != nil {
+		t.Fatalf("update threat: %v", err)
+	}
+
+	// 4. Повторно читаем запись из PostgreSQL.
+	updated, err := repo.GetByMD5(ctx, md5)
+	if err != nil {
+		t.Fatalf("get updated threat: %v", err)
+	}
+
+	if updated.FirstSeenAt == nil {
+		t.Fatal("first_seen_at is nil after update")
+	}
+
+	if !updated.FirstSeenAt.Equal(updatedFirstSeen) {
+		t.Errorf(
+			"expected updated first_seen_at %v, got %v",
+			updatedFirstSeen,
+			*updated.FirstSeenAt,
+		)
 	}
 }

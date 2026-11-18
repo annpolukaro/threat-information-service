@@ -2,11 +2,9 @@ package handler
 
 import (
 	"net/http"
-
-	"github.com/annpolukaro/threat-information-service/internal/repository"
 )
 
-func NewRouter(repo *repository.ThreatRepository) http.Handler {
+func NewRouter(repo ThreatRepository) http.Handler {
 	mux := http.NewServeMux()
 	handler := NewThreatHandler(repo)
 

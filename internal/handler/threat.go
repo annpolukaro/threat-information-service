@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -12,11 +13,17 @@ import (
 	"github.com/annpolukaro/threat-information-service/internal/repository"
 )
 
-type ThreatHandler struct {
-	repo *repository.ThreatRepository
+type ThreatRepository interface {
+	Create(ctx context.Context, threat *domain.Threat) error
+	GetByMD5(ctx context.Context, md5 string) (*domain.Threat, error)
+	Update(ctx context.Context, threat *domain.Threat) error
 }
 
-func NewThreatHandler(repo *repository.ThreatRepository) *ThreatHandler {
+type ThreatHandler struct {
+	repo ThreatRepository
+}
+
+func NewThreatHandler(repo ThreatRepository) *ThreatHandler {
 	return &ThreatHandler{repo: repo}
 }
 
