@@ -3,16 +3,18 @@ services:
   postgres:
     image: postgres:17-alpine
     environment:
-      POSTGRES_USER: threat_user
-      POSTGRES_PASSWORD: threat_password
-      POSTGRES_DB: threats_db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "127.0.0.1:15432:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-15432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./migrations/001_create_threats.sql:/docker-entrypoint-initdb.d/001_create_threats.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U threat_user -d threats_db"]
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"
       interval: 5s
       timeout: 5s
       retries: 5
@@ -22,9 +24,9 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8080:8080"
+      - "${API_PORT:-8080}:8080"
     environment:
-      DATABASE_URL: postgres://threat_user:threat_password@postgres:5432/threats_db?sslmode=disable
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
       PORT: "8080"
     depends_on:
       postgres:

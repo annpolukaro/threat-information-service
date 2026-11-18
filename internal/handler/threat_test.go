@@ -212,3 +212,82 @@ func TestUpdateThreatInternalError(t *testing.T) {
 	rec := sendRequest(t, NewRouter(repo), http.MethodPut, "/info/"+testMD5, body)
 	assertStatus(t, rec, http.StatusInternalServerError)
 }
+
+func TestCreateThreatWithRequiredFields(t *testing.T) {
+	repo := newMockThreatRepository()
+	router := NewRouter(repo)
+
+	body := `{
+		"md5": "5d41402abc4b2a76b9719d911017c592",
+		"name": "Trojan.Win32.Generic"
+	}`
+
+	rec := sendRequest(t, router, http.MethodPost, "/info", body)
+	assertStatus(t, rec, http.StatusCreated)
+
+	threat := readThreat(t, rec)
+
+	if threat.Name != "Trojan.Win32.Generic" {
+		t.Errorf("unexpected name: %s", threat.Name)
+	}
+
+	if threat.ThreatType != domain.ThreatTypeOther {
+		t.Errorf("unexpected default threat type: %s", threat.ThreatType)
+	}
+
+	if threat.Severity != domain.SeverityMedium {
+		t.Errorf("unexpected default severity: %s", threat.Severity)
+	}
+}
+
+func TestUpdateThreatWithRequiredFields(t *testing.T) {
+	repo := newMockThreatRepository()
+
+	repo.threats[testMD5] = &domain.Threat{
+		MD5:  testMD5,
+		Name: "Old Trojan",
+	}
+
+	body := `{"name":"Updated Trojan"}`
+
+	rec := sendRequest(
+		t,
+		NewRouter(repo),
+		http.MethodPut,
+		"/info/"+testMD5,
+		body,
+	)
+
+	assertStatus(t, rec, http.StatusOK)
+
+	threat := readThreat(t, rec)
+
+	if threat.Name != "Updated Trojan" {
+		t.Errorf("unexpected name: %s", threat.Name)
+	}
+}
+
+func TestErrorResponseFormat(t *testing.T) {
+	rec := sendRequest(
+		t,
+		NewRouter(newMockThreatRepository()),
+		http.MethodGet,
+		"/info/invalid",
+		"",
+	)
+
+	assertStatus(t, rec, http.StatusBadRequest)
+
+	var response struct {
+		Message string `json:"message"`
+		Details string `json:"details"`
+	}
+
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode error response: %v", err)
+	}
+
+	if response.Message == "" {
+		t.Error("error message is empty")
+	}
+}

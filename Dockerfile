@@ -1,6 +1,6 @@
 
 # Сборка приложения
-FROM golang:1.25-alpine AS builder
+FROM golang:1.26-alpine AS builder
 
 WORKDIR /app
 
@@ -16,7 +16,6 @@ FROM alpine:3.22
 
 WORKDIR /app
 
-RUN apk add --no-cache ca-certificates
 
 COPY --from=builder /app/server ./server
 

@@ -12,5 +12,7 @@ func NewRouter(repo ThreatRepository) http.Handler {
 	mux.HandleFunc("GET /info/{md5}", handler.GetByMD5)
 	mux.HandleFunc("PUT /info/{md5}", handler.Update)
 
-	return mux
+	limiter := NewRateLimiter(10, 20)
+
+	return limiter.Middleware(mux)
 }
