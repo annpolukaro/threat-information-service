@@ -23,12 +23,12 @@ const (
 )
 
 type Threat struct {
-	MD5         string
-	Name        string
-	Description string
-	ThreatType  ThreatType
-	Severity    Severity
-	FirstSeenAt *time.Time
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	MD5         string     `json:"md5"`
+	Name        string     `json:"name"`
+	Description string     `json:"description"`
+	ThreatType  ThreatType `json:"threat_type"`
+	Severity    Severity   `json:"severity"`
+	FirstSeenAt *time.Time `json:"first_seen_at"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
 }
