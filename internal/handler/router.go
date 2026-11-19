@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// NewRouter создаёт маршрутизатор REST API.
+// создаёт маршрутизатор
 func NewRouter(repo ThreatRepository, apiKey string) http.Handler {
 	mux := http.NewServeMux()
 

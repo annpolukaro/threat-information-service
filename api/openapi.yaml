@@ -1,4 +1,3 @@
-
 openapi: 3.0.0
 
 info:
@@ -263,6 +262,7 @@ components:
             и проверяет длину после удаления.
             Максимальная длина — 255 Unicode-символов.
           minLength: 1
+          maxLength: 255
           pattern: '\S'
           example: "Trojan.Win32.Generic"
 
@@ -313,6 +313,7 @@ components:
             и проверяет длину после удаления.
             Максимальная длина — 255 Unicode-символов.
           minLength: 1
+          maxLength: 255
           pattern: '\S'
           example: "Trojan.Win32.Updated"
 

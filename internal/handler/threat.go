@@ -71,10 +71,18 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) error {
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 
-	if err := decoder.Decode(dst); err != nil {
+	var raw json.RawMessage
+	if err := decoder.Decode(&raw); err != nil {
 		return err
 	}
 
+	// верхнеуровневое значение должно быть JSON-объектом.
+	trimmed := strings.TrimSpace(string(raw))
+	if len(trimmed) == 0 || trimmed[0] != '{' {
+		return errors.New("request body must be a JSON object")
+	}
+
+	// проверяем, что в теле находится только одно JSON-значение
 	var extra any
 	if err := decoder.Decode(&extra); err != io.EOF {
 		if err == nil {
@@ -83,7 +91,11 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) error {
 		return err
 	}
 
-	return nil
+	// декодируем объект в структуру запроса.
+	strictDecoder := json.NewDecoder(strings.NewReader(trimmed))
+	strictDecoder.DisallowUnknownFields()
+
+	return strictDecoder.Decode(dst)
 }
 
 func (h *ThreatHandler) Create(w http.ResponseWriter, r *http.Request) {
