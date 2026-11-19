@@ -17,9 +17,17 @@ import (
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
+	// подключение к PostgreSQL
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
 		logger.Error("DATABASE_URL is not set")
+		os.Exit(1)
+	}
+
+	// ключ для доступа к POST и PUT
+	apiKey := os.Getenv("API_KEY")
+	if apiKey == "" {
+		logger.Error("API_KEY is not set")
 		os.Exit(1)
 	}
 
@@ -30,6 +38,7 @@ func main() {
 	)
 	defer stop()
 
+	// подключение к базе данных
 	pool, err := repository.Connect(ctx, databaseURL)
 	if err != nil {
 		logger.Error("failed to connect to database", "error", err)
@@ -37,9 +46,11 @@ func main() {
 	}
 	defer pool.Close()
 
+	// создание репозитория и HTTP-маршрутизатора
 	repo := repository.NewThreatRepository(pool)
-	router := handler.NewRouter(repo)
+	router := handler.NewRouter(repo, apiKey)
 
+	// настройка HTTP-сервера
 	server := &http.Server{
 		Addr:              ":8080",
 		Handler:           router,
@@ -51,6 +62,7 @@ func main() {
 
 	serverErrors := make(chan error, 1)
 
+	// запуск HTTP-сервера
 	go func() {
 		logger.Info("HTTP server started", "address", server.Addr)
 
@@ -60,6 +72,7 @@ func main() {
 		}
 	}()
 
+	// ожидание сигнала завершения или ошибки сервера
 	select {
 	case <-ctx.Done():
 		logger.Info("shutdown signal received")
@@ -69,6 +82,7 @@ func main() {
 		stop()
 	}
 
+	// корректное завершение сервера
 	shutdownCtx, cancel := context.WithTimeout(
 		context.Background(),
 		10*time.Second,

@@ -4,41 +4,66 @@ openapi: 3.0.0
 info:
   title: Information Exchange Service
   description: |
-    REST API для обмена информацией об угрозах.
+    REST API для хранения и обмена информацией
+    о компьютерных угрозах по MD5-хешу файла.
 
-    API позволяет создавать, получать и обновлять информацию
-    о вредоносных файлах по их MD5-хешу.
+    Поддерживаются создание, получение и обновление угроз.
 
-    Ограничение запросов:
-    - 10 запросов в секунду.
-    - Максимум 20 запросов в короткий промежуток времени.
-  version: 1.0.0
+    Создание и обновление требуют API-ключ X-API-Key.
+    Получение информации доступно без авторизации.
+
+    Сервис использует PostgreSQL, HTTPS через Nginx
+    и ограничение частоты запросов.
+  version: 1.1.0
 
 servers:
-  - url: http://localhost:8080
-    description: Локальный сервер
+  - url: https://localhost
+    description: Локальный HTTPS-сервер через Nginx
+
+tags:
+  - name: Threats
+    description: Управление информацией об угрозах
 
 paths:
   /info:
     post:
+      tags:
+        - Threats
       summary: Создать новую угрозу
       description: |
         Создаёт запись об угрозе.
+
+        MD5 должен содержать 32 шестнадцатеричных символа.
+        MD5 нормализуется к нижнему регистру.
+
         MD5 должен быть уникальным.
-        Обязательные поля: md5 и name.
+
+        Если threat_type не указан, используется other.
+        Если severity не указан, используется medium.
+        Если description не указан, используется пустая строка.
+        Если first_seen_at не указан, используется null.
+
+        Требуется API-ключ.
       operationId: createThreat
+
+      security:
+        - ApiKeyAuth: []
+
       requestBody:
         required: true
+        description: Данные новой угрозы
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/ThreatCreateRequest'
             example:
-              md5: d41d8cd98f00b204e9800998ecf8427e
-              name: Trojan.Win32.Generic
-              description: Обнаружена вредоносная программа
-              threat_type: trojan
-              severity: high
+              md5: "5d41402abc4b2a76b9719d911017c592"
+              name: "Trojan.Win32.Generic"
+              description: "Вредоносная программа"
+              threat_type: "trojan"
+              severity: "high"
+              first_seen_at: "2026-01-15T10:30:00Z"
+
       responses:
         '201':
           description: Угроза успешно создана
@@ -46,138 +71,275 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ThreatResponse'
+
         '400':
           $ref: '#/components/responses/BadRequest'
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
         '409':
           $ref: '#/components/responses/Conflict'
+
         '429':
           $ref: '#/components/responses/TooManyRequests'
+
         '500':
-          $ref: '#/components/responses/ServerError'
+          $ref: '#/components/responses/InternalServerError'
 
   /info/{md5}:
     parameters:
       - name: md5
         in: path
         required: true
-        description: MD5-хеш файла (32 шестнадцатеричных символа)
+        description: MD5-хеш файла
         schema:
           type: string
           pattern: '^[a-fA-F0-9]{32}$'
-        example: d41d8cd98f00b204e9800998ecf8427e
+          minLength: 32
+          maxLength: 32
+        example: "5d41402abc4b2a76b9719d911017c592"
 
     get:
+      tags:
+        - Threats
       summary: Получить информацию об угрозе
-      description: Возвращает полную информацию об угрозе по MD5-хешу.
+      description: |
+        Возвращает полную информацию об угрозе
+        по указанному MD5-хешу.
+
+        Авторизация не требуется.
       operationId: getInfoByMd5
+
+      security: []
+
       responses:
         '200':
-          description: Информация об угрозе успешно получена
+          description: Информация успешно получена
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ThreatResponse'
+
         '400':
           $ref: '#/components/responses/BadRequest'
+
         '404':
           $ref: '#/components/responses/NotFound'
+
         '429':
           $ref: '#/components/responses/TooManyRequests'
+
         '500':
-          $ref: '#/components/responses/ServerError'
+          $ref: '#/components/responses/InternalServerError'
 
     put:
+      tags:
+        - Threats
       summary: Обновить информацию об угрозе
       description: |
-        Полностью обновляет редактируемые поля существующей угрозы.
-        MD5 передаётся в URL и не изменяется.
-        Обязательное поле: name.
-      operationId: updateThreat
+        Полностью заменяет изменяемые поля существующей угрозы.
+
+        MD5-хеш записи не изменяется.
+
+        Поле name обязательно.
+
+        Если threat_type не указан, используется other.
+        Если severity не указан, используется medium.
+        Если description не указан, используется пустая строка.
+        Если first_seen_at не указан, используется null.
+
+        Требуется API-ключ.
+      operationId: updateInfoByMd5
+
+      security:
+        - ApiKeyAuth: []
+
       requestBody:
         required: true
+        description: Новые данные угрозы
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/ThreatUpdateRequest'
             example:
-              name: Trojan.Win32.Updated
-              description: Обновлённое описание угрозы
-              threat_type: trojan
-              severity: critical
+              name: "Trojan.Win32.Updated"
+              description: "Обновлённое описание угрозы"
+              threat_type: "trojan"
+              severity: "critical"
+              first_seen_at: "2026-01-15T10:30:00Z"
+
       responses:
         '200':
-          description: Информация об угрозе успешно обновлена
+          description: Информация успешно обновлена
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ThreatResponse'
+
         '400':
           $ref: '#/components/responses/BadRequest'
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
         '404':
           $ref: '#/components/responses/NotFound'
+
         '429':
           $ref: '#/components/responses/TooManyRequests'
+
         '500':
-          $ref: '#/components/responses/ServerError'
+          $ref: '#/components/responses/InternalServerError'
 
 components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: |
+        API-ключ для создания и обновления угроз.
+
+        Передаётся в HTTP-заголовке X-API-Key.
+        Отсутствующий или неверный ключ приводит к HTTP 401.
+
   schemas:
+    ThreatType:
+      type: string
+      description: Тип компьютерной угрозы
+      default: other
+      enum:
+        - trojan
+        - virus
+        - worm
+        - ransomware
+        - spyware
+        - other
+      example: trojan
+
+    Severity:
+      type: string
+      description: Уровень опасности угрозы
+      default: medium
+      enum:
+        - low
+        - medium
+        - high
+        - critical
+      example: high
+
     ThreatCreateRequest:
       type: object
+      description: Данные для создания новой угрозы
+      additionalProperties: false
+
       required:
         - md5
         - name
+
       properties:
         md5:
           type: string
+          description: |
+            MD5-хеш файла.
+
+            Состоит из 32 шестнадцатеричных символов.
+            Сервер приводит значение к нижнему регистру.
           pattern: '^[a-fA-F0-9]{32}$'
-          description: MD5-хеш файла
-          example: d41d8cd98f00b204e9800998ecf8427e
+          minLength: 32
+          maxLength: 32
+          example: "5d41402abc4b2a76b9719d911017c592"
+
         name:
           type: string
+          description: |
+            Название угрозы.
+
+            Не может быть пустым или состоять только
+            из пробельных символов.
+
+            Сервер удаляет пробелы по краям строки
+            и проверяет длину после удаления.
+            Максимальная длина — 255 Unicode-символов.
           minLength: 1
-          maxLength: 255
-          description: Название угрозы
-          example: Trojan.Win32.Generic
+          pattern: '\S'
+          example: "Trojan.Win32.Generic"
+
         description:
           type: string
-          description: Описание угрозы
-          example: Обнаружена вредоносная программа
+          description: Дополнительное описание угрозы
+          default: ''
+          example: "Вредоносная программа"
+
         threat_type:
           $ref: '#/components/schemas/ThreatType'
+
         severity:
           $ref: '#/components/schemas/Severity'
+
         first_seen_at:
           type: string
           format: date-time
           nullable: true
-          description: Время первого обнаружения угрозы
+          description: Дата первого обнаружения угрозы
+          example: "2026-01-15T10:30:00Z"
 
     ThreatUpdateRequest:
       type: object
+      description: |
+        Данные для полного обновления изменяемых полей угрозы.
+
+        Поле name обязательно.
+
+        Отсутствующие необязательные поля получают
+        значения по умолчанию.
+
+      additionalProperties: false
+
       required:
         - name
+
       properties:
         name:
           type: string
+          description: |
+            Новое название угрозы.
+
+            Не может быть пустым или состоять только
+            из пробельных символов.
+
+            Сервер удаляет пробелы по краям строки
+            и проверяет длину после удаления.
+            Максимальная длина — 255 Unicode-символов.
           minLength: 1
-          maxLength: 255
-          description: Новое название угрозы
+          pattern: '\S'
+          example: "Trojan.Win32.Updated"
+
         description:
           type: string
           description: Новое описание угрозы
+          default: ''
+          example: "Обновлённая информация об угрозе"
+
         threat_type:
           $ref: '#/components/schemas/ThreatType'
+
         severity:
           $ref: '#/components/schemas/Severity'
+
         first_seen_at:
           type: string
           format: date-time
           nullable: true
-          description: Время первого обнаружения угрозы
+          description: Дата первого обнаружения угрозы
+          example: "2026-01-15T10:30:00Z"
 
     ThreatResponse:
       type: object
+      description: Полная информация об угрозе
+      additionalProperties: false
+
       required:
         - md5
         - name
@@ -187,106 +349,127 @@ components:
         - first_seen_at
         - created_at
         - updated_at
+
       properties:
         md5:
           type: string
-          pattern: '^[a-fA-F0-9]{32}$'
-          description: MD5-хеш файла
+          description: MD5-хеш файла в нижнем регистре
+          pattern: '^[a-f0-9]{32}$'
+          minLength: 32
+          maxLength: 32
+          example: "5d41402abc4b2a76b9719d911017c592"
+
         name:
           type: string
           description: Название угрозы
+          minLength: 1
+          maxLength: 255
+          example: "Trojan.Win32.Generic"
+
         description:
           type: string
           description: Описание угрозы
+          example: "Вредоносная программа"
+
         threat_type:
           $ref: '#/components/schemas/ThreatType'
+
         severity:
           $ref: '#/components/schemas/Severity'
+
         first_seen_at:
           type: string
           format: date-time
           nullable: true
+          description: Дата первого обнаружения угрозы
+          example: "2026-01-15T10:30:00Z"
+
         created_at:
           type: string
           format: date-time
+          description: Дата создания записи
+          example: "2026-01-15T10:30:00Z"
+
         updated_at:
           type: string
           format: date-time
-
-    ThreatType:
-      type: string
-      enum:
-        - trojan
-        - virus
-        - worm
-        - ransomware
-        - spyware
-        - other
-      default: other
-      description: Тип угрозы
-
-    Severity:
-      type: string
-      enum:
-        - low
-        - medium
-        - high
-        - critical
-      default: medium
-      description: Уровень опасности
+          description: Дата последнего обновления записи
+          example: "2026-01-15T11:00:00Z"
 
     ErrorResponse:
       type: object
+      description: Информация об ошибке
+      additionalProperties: false
+
       required:
         - message
+
       properties:
         message:
           type: string
-          description: Описание ошибки
-          example: Threat not found
+          description: Основное сообщение об ошибке
+          example: "Threat not found"
+
         details:
           type: string
-          description: Дополнительная информация
-          example: No threat with specified MD5 found
+          description: Дополнительная информация об ошибке
+          example: "invalid md5"
 
   responses:
     BadRequest:
-      description: Некорректные данные запроса
+      description: Некорректные входные данные
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    Unauthorized:
+      description: |
+        API-ключ отсутствует или неверен.
+        Необходим заголовок X-API-Key.
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
 
     NotFound:
-      description: Угроза не найдена
+      description: Угроза с указанным MD5 не найдена
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
 
     Conflict:
-      description: Угроза с таким MD5 уже существует
+      description: Угроза с указанным MD5 уже существует
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
 
     TooManyRequests:
-      description: Превышено допустимое количество запросов
+      description: |
+        Превышено допустимое количество запросов.
+
+        Rate limiting применяется по IP-адресу клиента.
+        Лимит приложения: 10 запросов в секунду,
+        максимальный burst — 20 запросов.
+
       headers:
         Retry-After:
-          description: Время ожидания перед повторной попыткой
+          description: |
+            Рекомендуемое время ожидания перед повторным
+            запросом в секундах.
           schema:
             type: integer
+            minimum: 0
             example: 1
+
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
-          example:
-            message: Too many requests
 
-    ServerError:
+    InternalServerError:
       description: Внутренняя ошибка сервера
       content:
         application/json:

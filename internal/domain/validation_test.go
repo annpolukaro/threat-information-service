@@ -1,6 +1,9 @@
 package domain
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestValidateMD5(t *testing.T) {
 	tests := []struct {
@@ -57,5 +60,63 @@ func TestThreatValidateInvalidName(t *testing.T) {
 
 	if err := threat.Validate(); err != ErrInvalidName {
 		t.Errorf("expected ErrInvalidName, got %v", err)
+	}
+}
+
+func TestThreatValidateNameLength(t *testing.T) {
+	tests := []struct {
+		name      string
+		value     string
+		wantError bool
+	}{
+		{
+			name:      "English name with 255 characters",
+			value:     strings.Repeat("A", 255),
+			wantError: false,
+		},
+		{
+			name:      "Russian name with 255 characters",
+			value:     strings.Repeat("Я", 255),
+			wantError: false,
+		},
+		{
+			name:      "Name with 256 characters",
+			value:     strings.Repeat("A", 256),
+			wantError: true,
+		},
+		{
+			name:      "Russian name with 256 characters",
+			value:     strings.Repeat("Я", 256),
+			wantError: true,
+		},
+		{
+			name:      "Empty name",
+			value:     "",
+			wantError: true,
+		},
+		{
+			name:      "Whitespace only",
+			value:     "   ",
+			wantError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			threat := Threat{
+				MD5:  "d41d8cd98f00b204e9800998ecf8427e",
+				Name: tt.value,
+			}
+
+			err := threat.Validate()
+
+			if tt.wantError && err != ErrInvalidName {
+				t.Errorf("expected ErrInvalidName, got %v", err)
+			}
+
+			if !tt.wantError && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		})
 	}
 }

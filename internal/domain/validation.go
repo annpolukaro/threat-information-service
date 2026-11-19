@@ -4,6 +4,7 @@ import (
 	"errors"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 )
 
 var md5Regex = regexp.MustCompile(`^[a-fA-F0-9]{32}$`)
@@ -26,7 +27,7 @@ func (t *Threat) Validate() error {
 
 	t.Name = strings.TrimSpace(t.Name)
 
-	if t.Name == "" || len(t.Name) > 255 {
+	if t.Name == "" || utf8.RuneCountInString(t.Name) > 255 {
 		return ErrInvalidName
 	}
 
