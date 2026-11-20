@@ -12,6 +12,7 @@ import (
 
 	"github.com/annpolukaro/threat-information-service/internal/handler"
 	"github.com/annpolukaro/threat-information-service/internal/repository"
+	"github.com/annpolukaro/threat-information-service/internal/service"
 )
 
 func main() {
@@ -48,7 +49,8 @@ func main() {
 
 	// создание репозитория и HTTP-маршрутизатора
 	repo := repository.NewThreatRepository(pool)
-	router := handler.NewRouter(repo, apiKey)
+	svc := service.NewThreatService(repo)
+	router := handler.NewRouter(svc, apiKey)
 
 	// настройка HTTP-сервера
 	server := &http.Server{

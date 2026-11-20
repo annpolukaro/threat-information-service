@@ -13,19 +13,15 @@ import (
 	"github.com/annpolukaro/threat-information-service/internal/repository"
 )
 
-type ThreatRepository interface {
-	Create(ctx context.Context, threat *domain.Threat) error
-	GetByMD5(ctx context.Context, md5 string) (*domain.Threat, error)
-	Update(ctx context.Context, threat *domain.Threat) error
+type ThreatService interface {
+	Create(context.Context, *domain.Threat) error
+	GetByMD5(context.Context, string) (*domain.Threat, error)
+	Update(context.Context, *domain.Threat) error
 }
 
-type ThreatHandler struct {
-	repo ThreatRepository
-}
+type ThreatHandler struct{ service ThreatService }
 
-func NewThreatHandler(repo ThreatRepository) *ThreatHandler {
-	return &ThreatHandler{repo: repo}
-}
+func NewThreatHandler(svc ThreatService) *ThreatHandler { return &ThreatHandler{service: svc} }
 
 type createThreatRequest struct {
 	MD5         string            `json:"md5"`
@@ -115,12 +111,11 @@ func (h *ThreatHandler) Create(w http.ResponseWriter, r *http.Request) {
 		FirstSeenAt: req.FirstSeenAt,
 	}
 
-	if err := threat.Validate(); err != nil {
-		writeError(w, http.StatusBadRequest, "Invalid threat data", err.Error())
-		return
-	}
-
-	if err := h.repo.Create(r.Context(), &threat); err != nil {
+	if err := h.service.Create(r.Context(), &threat); err != nil {
+		if isInvalidThreat(err) {
+			writeError(w, http.StatusBadRequest, "Invalid threat data", err.Error())
+			return
+		}
 		if errors.Is(err, repository.ErrConflict) {
 			writeError(w, http.StatusConflict, "Threat already exists", "")
 			return
@@ -136,13 +131,12 @@ func (h *ThreatHandler) Create(w http.ResponseWriter, r *http.Request) {
 func (h *ThreatHandler) GetByMD5(w http.ResponseWriter, r *http.Request) {
 	md5 := r.PathValue("md5")
 
-	if !domain.ValidateMD5(md5) {
-		writeError(w, http.StatusBadRequest, "Invalid MD5", "")
-		return
-	}
-
-	threat, err := h.repo.GetByMD5(r.Context(), strings.ToLower(md5))
+	threat, err := h.service.GetByMD5(r.Context(), md5)
 	if err != nil {
+		if errors.Is(err, domain.ErrInvalidMD5) {
+			writeError(w, http.StatusBadRequest, "Invalid MD5", "")
+			return
+		}
 		if errors.Is(err, repository.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "Threat not found", "")
 			return
@@ -158,11 +152,6 @@ func (h *ThreatHandler) GetByMD5(w http.ResponseWriter, r *http.Request) {
 func (h *ThreatHandler) Update(w http.ResponseWriter, r *http.Request) {
 	md5 := r.PathValue("md5")
 
-	if !domain.ValidateMD5(md5) {
-		writeError(w, http.StatusBadRequest, "Invalid MD5", "")
-		return
-	}
-
 	var req updateThreatRequest
 
 	if err := decodeJSON(w, r, &req); err != nil {
@@ -171,7 +160,7 @@ func (h *ThreatHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	threat := domain.Threat{
-		MD5:         strings.ToLower(md5),
+		MD5:         md5,
 		Name:        req.Name,
 		Description: req.Description,
 		ThreatType:  req.ThreatType,
@@ -179,12 +168,15 @@ func (h *ThreatHandler) Update(w http.ResponseWriter, r *http.Request) {
 		FirstSeenAt: req.FirstSeenAt,
 	}
 
-	if err := threat.Validate(); err != nil {
-		writeError(w, http.StatusBadRequest, "Invalid threat data", err.Error())
-		return
-	}
-
-	if err := h.repo.Update(r.Context(), &threat); err != nil {
+	if err := h.service.Update(r.Context(), &threat); err != nil {
+		if errors.Is(err, domain.ErrInvalidMD5) {
+			writeError(w, http.StatusBadRequest, "Invalid MD5", "")
+			return
+		}
+		if isInvalidThreat(err) {
+			writeError(w, http.StatusBadRequest, "Invalid threat data", err.Error())
+			return
+		}
 		if errors.Is(err, repository.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "Threat not found", "")
 			return
@@ -195,4 +187,10 @@ func (h *ThreatHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, threat)
+}
+
+// isInvalidThreat identifies validation errors returned by the domain model.
+func isInvalidThreat(err error) bool {
+	return errors.Is(err, domain.ErrInvalidMD5) || errors.Is(err, domain.ErrInvalidName) ||
+		errors.Is(err, domain.ErrInvalidThreatType) || errors.Is(err, domain.ErrInvalidSeverity)
 }

@@ -8,7 +8,7 @@ import (
 )
 
 // создаёт маршрутизатор
-func NewRouter(repo ThreatRepository, apiKey string) http.Handler {
+func NewRouter(svc ThreatService, apiKey string) http.Handler {
 	mux := http.NewServeMux()
 
 	// проверка работоспособности HTTP-сервера.
@@ -18,7 +18,7 @@ func NewRouter(repo ThreatRepository, apiKey string) http.Handler {
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})
 
-	handler := NewThreatHandler(repo)
+	handler := NewThreatHandler(svc)
 
 	// REST API для работы с угрозами
 	mux.HandleFunc("POST /info", handler.Create)
