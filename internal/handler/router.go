@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"os"
 	"strings"
+
+	"github.com/annpolukaro/threat-information-service/internal/api/generated"
 )
 
 // создаёт маршрутизатор
@@ -20,10 +22,13 @@ func NewRouter(svc ThreatService, apiKey string) http.Handler {
 
 	handler := NewThreatHandler(svc)
 
-	// REST API для работы с угрозами
-	mux.HandleFunc("POST /info", handler.Create)
-	mux.HandleFunc("GET /info/{md5}", handler.GetByMD5)
-	mux.HandleFunc("PUT /info/{md5}", handler.Update)
+	// REST API: маршруты сгенерированы из OpenAPI
+	generated.HandlerWithOptions(
+		NewGeneratedAdapter(handler),
+		generated.StdHTTPServerOptions{
+			BaseRouter: mux,
+		},
+	)
 
 	// ограничение частоты запросов
 	limiter := NewRateLimiter(10, 20)
